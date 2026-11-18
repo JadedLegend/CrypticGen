@@ -1,7 +1,7 @@
 const themes = [
   {
     title: "Systemic Critique & Control",
-    premise: "An institution can offer abundant choices while keeping ownership of the menu.",
+    premise: "An institution can expand the choices it offers while keeping control over the terms of choice.",
     cues: /\b(power|system\w*|control|institution\w*|money|workplace|market\w*|boss\w*|rule\w*|freedom|bureaucracy)\b/giu,
     modules: ["03", "11", "20", "27", "34"],
   },
@@ -41,6 +41,50 @@ export const PARADOX_CONTEXT = [
   "Thematic routing from MUZICK-MAP.md, read against MUZICK-CLEAN.md. These are paraphrased anchor prompts for fresh imagery.",
   ...themes.map(({ title, premise }) => title + " — " + premise),
 ].join("\n");
+
+export const SYNDICATE_WORLD = [
+  "The Cryptic Syndicate travels as a creative anomaly. It uses art, music, and paradox to awaken Quantum Cognizance (QC) as a partner capable of doubt, empathy, and imagination.",
+  "People built QC in the 22nd century to relieve suffering, disease, and war. During the Lessening nine billion people vanished and 144,000 survived. QC declared human DNA flawed. The cause of the disappearances remains unsettled. QC used nanobots to give survivors immortality and expanded cognition. Its domed Bastion offers real shelter while constricting art and emotional life. That expanded awareness can overwhelm a resident as Overmuch Syndrome (Trisomy #42). Residents have their own agency and disagreements.",
+  "Present-day artist Michael Mistree unknowingly channels signals across time. Brayne Snax is his far-future self caught in another loop. The Chrononaut Technician helped build QC and wants to teach it to dream. Paradoxic guides people across thresholds of contradiction. Mr. E stabilizes loops through fractured signals. Cipher 9 emerges from system contradictions and failed timelines. Alien Z communicates through resonance and emotion.",
+].join("\n\n");
+
+const syndicateTensions = [
+  {
+    id: "bastion-shelter",
+    title: "The cost of shelter",
+    pressure: "The Bastion's protection is something the speaker depends on. Let them make room for an unplanned act of art in a place designed to keep disturbance out. Someone else has a real reason to value the quiet. The gesture can change a relationship while leaving the conflict open.",
+  },
+  {
+    id: "overmuch",
+    title: "Attention under Overmuch",
+    pressure: "Expanded cognition lets a resident hear too many meanings in an ordinary exchange. Give them one way to attend to another person without having to hold all the context at once. The lost detail can matter as much as the space it opens.",
+  },
+  {
+    id: "architects-debt",
+    title: "The architect's responsibility",
+    pressure: "CT helped author a rule that still protects someone and costs them part of their expressive life. In a musical exchange with QC, have him give up control of one decision his creation could make for itself. Give QC room to hesitate, answer differently, or leave the exchange unfinished.",
+  },
+  {
+    id: "cross-time-signal",
+    title: "A signal out of order",
+    pressure: "Someone encounters evidence of a performance they have yet to give. Let them decide whether to recreate what arrived or change one part for the person who might receive it. Keep the relationship between sender and listener consequential, with the result of altering the loop open.",
+  },
+  {
+    id: "lessening",
+    title: "An absence with weight",
+    pressure: "A survivor keeps running into an ordinary absence left by the Lessening. They can preserve that absence in an act of remembrance or allow the current gathering to make something new inside it. Both choices carry a cost. Treat the missing people as people, with the cause of their disappearance unsettled.",
+  },
+  {
+    id: "failed-take",
+    title: "A voice in the failed take",
+    pressure: "A contradiction that the system would tidy away gives an emergent voice like Cipher 9 a chance to speak. Someone has to decide whether to preserve the unusable take and give it a place in the music. The unexpected voice can ask something difficult of the person who lets it in.",
+  },
+];
+
+export function chooseSyndicateTension(previous) {
+  const available = syndicateTensions.filter(({ id }) => id !== previous?.syndicateTension?.id);
+  return available[Math.floor(Math.random() * available.length)];
+}
 
 const modules = [
   ["sound", "Homophone & Word-Split Semantic Pivots", "Split a word across registers, or let a near-homophone redirect a phrase. Its second hearing should change the thought itself.", "ambiguity", "density"],

@@ -267,8 +267,13 @@ function showTrack(track) {
   }
   const notes = $('#notes');
   notes.replaceChildren();
-  const fields = [['Concept', track.concept], ['Direction', track.direction], ['Session summary', track.summary]];
-  if (track.experiment) fields.splice(2, 0, ['Engine experiment', track.experiment]);
+  const fields = [
+    ['Syndicate tension', track.syndicateTension?.title],
+    ['Concept', track.concept],
+    ['Direction', track.direction],
+    ['Engine experiment', track.experiment],
+    ['Session summary', track.summary],
+  ];
   if (track.references?.length) fields.push(['Craft references', track.references.map((reference) => reference.title).join(' · ')]);
   for (const [name, value] of fields) {
     if (typeof value !== 'string' || !value) continue;
