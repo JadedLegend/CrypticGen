@@ -1,0 +1,339 @@
+/* ==========================================================================
+   COGNITIVE DROPS / CRYPTIC SYNDICATE / COHERENT CABAL
+   Unified brand tokens. Generated 2026-11-14.
+
+   Every colour below was sampled from the supplied artwork (not from the
+   three websites), converted to oklch, and contrast-checked against both
+   ground colours. Ratios are recorded inline. Do not hand-tune these hues
+   without re-running the contrast check in tools/palette.py.
+
+   Four type roles, four surfaces, one legibility ratio. See BRAND.md.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:wght@400;500&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap");
+
+:root {
+  /* ---- GROUND ------------------------------------------------------------
+     The void is never pure black. It is indigo-black, the colour of the
+     space between stars in every piece of the artwork. Pure #000 reads as
+     "website"; #07060F reads as "outer space". */
+  --void: #07060F;               /* oklch(13.0% .021 289.2) */
+  --night: #12111F;              /* oklch(18.6% .028 286.6) */
+  --night-raised: #1B1932;       /* oklch(23.0% .048 285.7) */
+  --bond: #2A2745;               /* hairline on dark; ~1.5:1, decoration only */
+
+  /* ---- INK ---------------------------------------------------------------
+     Paper is cool off-white with a violet undertone — the white of the
+     sigil glyphs in the artwork, not a warm ivory. */
+  --paper: #EDEAF3;              /* 16.95:1 on void — 15.69:1 on night */
+  --ink-muted: #9C98B8;          /*  7.29:1 on void —  6.75:1 on night */
+  --ink-faint: #6B6788;          /*  3.76:1 on void —  3.48:1 on night
+                                    Decoration / large text only. Never body. */
+
+  /* ---- SPECTRUM ----------------------------------------------------------
+     The neon range. Names are spectral, not functional, because the brand
+     assigns meaning by hue rather than by role. */
+  --cyan: #43D9E8;               /* 11.83:1 — the circuit neon, the drip */
+  --azure: #5B9BEA;              /*  7.03:1 — galaxy flesh, the fluid body */
+  --violet: #9A7EE0;             /*  6.18:1 — the syndicate, sigil light */
+  --magenta: #C97BB8;            /*  6.73:1 — nebula bloom, fabric */
+  --amber: #E8A44A;              /*  9.44:1 — the glowing core, the altar */
+  --gold: #C9A22B;               /*  8.34:1 — inscription, brass, cymatics */
+  --ember: #F2603C;              /*  6.25:1 — supernova, the lab beaker */
+
+  /* ---- SEMANTIC ---------------------------------------------------------- */
+  --bg: var(--void);
+  --fg: var(--paper);
+  --fg-soft: var(--ink-muted);
+  --fg-quiet: var(--ink-faint);
+  --rule: var(--bond);
+
+  --accent: var(--cyan);         /* Drops: release, current, transmission */
+  --accent-alt: var(--amber);    /* Cabal: warmth, invitation, the altar */
+  --accent-cold: var(--violet);  /* Syndicate: encryption, sigil, distance */
+  --alert: var(--ember);
+
+  /* ---- TYPE --------------------------------------------------------------
+     ROLE 1  ritual    — inscriptions only. Uppercase, always tracked.
+                         Cinzel is engraved Roman; it is the letterform
+                         equivalent of the GD monogram. Never sentence case.
+     ROLE 2  editorial — reading voice. Long-form prose, pull quotes.
+                         Cormorant Garamond; the "coherent" pole.
+     ROLE 3  data      — labels, numerals, glyph names, timestamps, code.
+                         Space Mono.
+     ROLE 4  ui        — functional small text, buttons, captions.
+                         DM Sans. Deliberately plain; it stays out of the way.
+  */
+  --font-ritual: "Cinzel", "Trajan Pro", Georgia, serif;
+  --font-editorial: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --font-data: "Space Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-ui: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Fluid display scale. Min at 390px viewport, max at 1600px. */
+  --size-inscription: clamp(2.6rem, 1.2rem + 6.2vw, 7.5rem);
+  --size-display: clamp(2.1rem, 1.3rem + 3.6vw, 4.5rem);
+  --size-title: clamp(1.55rem, 1.2rem + 1.5vw, 2.35rem);
+  --size-lead: clamp(1.15rem, 1.05rem + 0.4vw, 1.375rem);
+  --size-body: clamp(1.0625rem, 1.02rem + 0.2vw, 1.1875rem);
+  --size-small: 0.875rem;
+  /* 12px, not 11px. Tracked uppercase loses legibility fast; the extra pixel
+     is the difference between a label and a smudge on a real phone. */
+  --size-micro: 0.75rem;
+
+  --tracking-ritual: 0.22em;
+  --tracking-label: 0.18em;
+  --tracking-display: -0.01em;
+
+  --leading-tight: 1.06;
+  --leading-snug: 1.24;
+  --leading-body: 1.62;
+
+  /* ---- SPACE -------------------------------------------------------------
+     4px base. The artwork is dense; the text environment is not. Whitespace
+     is the brand's composure. Never compress this to fit more in. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
+  --measure: 62ch;               /* reading measure for editorial copy */
+  --container: 78rem;
+  --gutter: clamp(1.25rem, 4vw, 4rem);
+
+  /* ---- FORM --------------------------------------------------------------
+     Radius is 0. Every time. The monogram is engraved and the columns are
+     cut stone; rounded corners are a different brand. This is not a taste
+     preference, it is the single most identifying formal rule. */
+  --radius: 0;
+  --hairline: 1px;
+  --shadow: none;
+
+  /* ---- MOTION ------------------------------------------------------------
+     Slow and continuous, like drift. Nothing snaps. */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 180ms;
+  --dur-base: 420ms;
+  --dur-slow: 1200ms;
+}
+
+/* ==========================================================================
+   SURFACES — the legibility ratio
+   --------------------------------------------------------------------------
+   The brand lives on an axis from encrypted to readable. Every surface
+   declares where it sits, and that decides what may be written on it.
+   This is the rule that keeps the maximalist art usable.
+
+   ratio 0.00  cipher  art only. Ritual display type permitted, nothing else.
+   ratio 0.33  veil    art + scrim. Display + short data labels.
+   ratio 0.66  glass   dark panel floating over art. Soft body text allowed.
+   ratio 1.00  page    flat ground. All reading text belongs here.
+   ========================================================================== */
+
+.surface-cipher {
+  background-color: var(--void);
+  color: var(--paper);
+  position: relative;
+  isolation: isolate;
+}
+.surface-cipher > .art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+.surface-cipher > .scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 90% at 50% 45%, transparent 0%, rgba(7, 6, 15, 0.35) 55%, var(--void) 100%),
+    linear-gradient(to top, var(--void) 0%, rgba(7, 6, 15, 0.15) 45%, transparent 100%);
+}
+
+.surface-veil {
+  background: var(--night);
+  color: var(--paper);
+}
+
+.surface-glass {
+  background: color-mix(in oklab, var(--night-raised) 82%, transparent);
+  border: var(--hairline) solid var(--bond);
+  backdrop-filter: blur(14px) saturate(120%);
+  color: var(--paper);
+}
+
+.surface-page {
+  background: var(--void);
+  color: var(--paper);
+}
+
+/* Paper register — the "coherent" extreme, used sparingly and on purpose.
+   This is the one place ink is dark. It should feel like an interruption. */
+.surface-paper {
+  background: var(--paper);
+  color: #14121F;
+}
+.surface-paper .label { color: #5B5670; }
+.surface-paper .rule { border-color: #C9C4DA; }
+
+/* ==========================================================================
+   TYPE ROLES
+   ========================================================================== */
+
+.ritual {
+  font-family: var(--font-ritual);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-ritual);
+  font-weight: 400;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+.display {
+  font-family: var(--font-editorial);
+  font-weight: 300;
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+.display em {
+  font-style: italic;
+  color: var(--ink-muted);
+}
+
+.lead {
+  font-family: var(--font-editorial);
+  font-size: var(--size-lead);
+  font-weight: 400;
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+.prose {
+  font-family: var(--font-editorial);
+  font-size: var(--size-body);
+  font-weight: 400;
+  line-height: var(--leading-body);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+.prose p + p { margin-top: 1.1em; }
+
+.label {
+  font-family: var(--font-data);
+  font-size: var(--size-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-faint);
+}
+
+.ui {
+  font-family: var(--font-ui);
+  font-size: var(--size-small);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+/* ==========================================================================
+   CONTROLS — square, hairline, no fill until hover
+   ========================================================================== */
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-data);
+  font-size: var(--size-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--paper);
+  background: transparent;
+  border: var(--hairline) solid color-mix(in oklab, var(--cyan) 40%, transparent);
+  padding: var(--space-4) var(--space-6);
+  border-radius: 0;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.action:hover {
+  background: color-mix(in oklab, var(--cyan) 12%, transparent);
+  border-color: var(--cyan);
+}
+.action:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+/* Keyboard focus is a first-class state in this brand: the room is dark, so the
+   UA's 1px auto ring is effectively invisible. Applies to every focusable
+   element, including the nav rail, inline prose links and footer links. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 0;
+}
+/* On the paper surface cyan would be low-contrast; swap to ink. */
+.surface-paper :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
+.surface-glass :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline-color: var(--violet);
+}
+
+/* ==========================================================================
+   ACCESSIBILITY
+   `faint` is 3.76:1 — it fails for body text and passes for large text only.
+   The utility below is the only sanctioned use.
+   ========================================================================== */
+
+.quiet-large {
+  color: var(--ink-faint);
+  font-size: var(--size-lead);
+}
+
+/* Every interactive element must clear 44x44 CSS px for touch. The brand's
+   small tracked mono labels tempt designers into 19px-tall links; this rule
+   exists because that was caught in review, not as theory. */
+a,
+button,
+[role="button"],
+input,
+select,
+textarea {
+  min-height: 44px;
+}
+
+/* Inline links inside prose are exempt — they flow with the text. */
+.prose a,
+.lead a,
+.prose-inline a {
+  min-height: 0;
+  display: inline;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in oklab, var(--cyan) 55%, transparent);
+}
+.prose a:hover,
+.lead a:hover {
+  text-decoration-color: var(--cyan);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

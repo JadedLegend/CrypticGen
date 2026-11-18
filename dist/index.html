@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Write original lyrics with four creative agents and prepare a track for Suno.">
+  <meta name="theme-color" content="#07060f">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>CrypticGen · Lyric Studio</title>
+  <link rel="stylesheet" href="./brand.tokens.css">
+  <link rel="stylesheet" href="./studio.css">
+  <script type="module" src="./studio.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="./" aria-label="CrypticGen home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span>CrypticGen</span>
+      </a>
+      <div class="header-actions">
+        <button id="history-trigger" type="button" class="button button-quiet" aria-haspopup="dialog">Sessions <span id="history-count" class="count" hidden></span></button>
+        <button id="connection-trigger" type="button" class="button button-connection" aria-haspopup="dialog"><span class="status-lamp" aria-hidden="true"></span><span id="connection-label">Connect OpenRouter</span></button>
+      </div>
+    </div>
+  </header>
+  <main class="studio">
+    <header class="studio-heading">
+      <div class="hero-copy">
+        <p class="eyebrow">Four-agent songwriting</p>
+        <h1>CrypticGen</h1>
+        <p class="intro">Start with a line or let the agents find one. Take the finished lyrics and style into Suno.</p>
+        <div class="hero-actions"><a class="button button-quiet" href="#track-studio">Open lyric studio <span aria-hidden="true">↓</span></a></div>
+      </div>
+      <div class="hero-art"><img src="./assets/studio-art.webp" alt="A masked figure at a stone DJ altar beneath a moon and a gold mandala" fetchpriority="high"></div>
+    </header>
+    <div id="track-studio"></div>
+    <section class="signal-chain" aria-label="Agent sequence" id="stages"></section>
+    <div class="workspace">
+      <form class="panel composer" id="composer">
+        <div class="panel-top">
+          <h2>Compose</h2>
+          <button class="text-button" id="reset" type="button">Reset levers</button>
+        </div>
+        <div class="composer-body">
+          <div class="seed-field">
+            <label for="seed">Starting line <span class="muted">Optional</span></label>
+            <textarea id="seed" maxlength="240" rows="2" placeholder="A line, an image, or two truths in conflict…"></textarea>
+          </div>
+          <fieldset class="lever-fieldset" id="lever-fieldset">
+            <legend>Creative levers</legend>
+            <label class="switch-row" for="steering">
+              <span><strong>Let the engine steer</strong><small>Paradoxic chooses values for levers set to Auto.</small></span>
+              <input id="steering" type="checkbox" role="switch">
+            </label>
+            <div id="levers" class="levers"></div>
+          </fieldset>
+          <div class="compose-actions">
+            <button type="submit" class="button button-primary" id="generate"><span aria-hidden="true">✦</span> Generate track</button>
+            <button type="button" class="button button-quiet" id="cancel" hidden>Cancel</button>
+          </div>
+          <p id="compose-status" class="compose-status" role="status" aria-live="polite">Connect an OpenRouter key to start a run.</p>
+        </div>
+      </form>
+      <section class="panel output" aria-labelledby="output-heading">
+        <div class="panel-top">
+          <h2 id="output-heading">Track output</h2>
+          <button type="button" class="text-button" id="download" hidden>Download .txt</button>
+        </div>
+        <div class="output-tabs" role="tablist" aria-label="Track output views">
+          <button id="tab-lyrics" type="button" role="tab" aria-controls="view-lyrics" aria-selected="true">Lyrics</button>
+          <button id="tab-style" type="button" role="tab" aria-controls="view-style" aria-selected="false" tabindex="-1">Suno style</button>
+          <button id="tab-notes" type="button" role="tab" aria-controls="view-notes" aria-selected="false" tabindex="-1">Session notes</button>
+        </div>
+        <div id="output-empty" class="output-empty">
+          <span class="track-glyph" aria-hidden="true">◇</span>
+          <h3 id="output-placeholder-title">Your track starts here</h3>
+          <p id="output-placeholder-body">Run the four agents to build lyrics, a production brief, and a Suno-ready arrangement.</p>
+        </div>
+        <div id="track-output" class="track-output" hidden>
+          <h3 id="track-title"></h3>
+          <section id="view-lyrics" role="tabpanel" aria-labelledby="tab-lyrics" tabindex="0">
+            <div class="track-tools"><span id="lyrics-count"></span><button class="text-button" type="button" data-copy="lyrics">Copy lyrics</button></div>
+            <div id="lyrics" class="track-text"></div>
+          </section>
+          <section id="view-style" role="tabpanel" aria-labelledby="tab-style" tabindex="0" hidden>
+            <div class="track-tools"><span id="style-count"></span><button class="text-button" type="button" data-copy="style">Copy style</button></div>
+            <div id="style" class="track-text"></div>
+          </section>
+          <section id="view-notes" role="tabpanel" aria-labelledby="tab-notes" tabindex="0" hidden><div id="notes" class="notes"></div></section>
+        </div>
+      </section>
+    </div>
+  </main>
+  <dialog id="connection" class="studio-dialog" aria-label="OpenRouter connection"></dialog>
+  <dialog id="history" class="studio-dialog" aria-labelledby="history-heading">
+    <div class="dialog-header"><h2 id="history-heading">Sessions</h2><button class="text-button" type="button" id="close-history">Close</button></div>
+    <div id="history-list" class="history-list"></div>
+  </dialog>
+  <noscript><p class="noscript">Enable JavaScript to use the lyric studio.</p></noscript>
+</body>
+</html>
