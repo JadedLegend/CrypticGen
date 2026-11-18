@@ -29,7 +29,7 @@
       <div class="hero-copy">
         <p class="eyebrow">Four-agent songwriting</p>
         <h1>CrypticGen</h1>
-        <p class="intro">Start with a line or let the agents find one. Take the finished lyrics and style into Suno.</p>
+        <p class="intro">Start with a line or a full songwriting brief. Leave the prompt blank to let the agents choose a direction.</p>
         <div class="hero-actions"><a class="button button-quiet" href="#track-studio">Open lyric studio <span aria-hidden="true">↓</span></a></div>
       </div>
       <div class="hero-art"><img src="./assets/studio-art.webp" alt="A masked figure at a stone DJ altar beneath a moon and a gold mandala" fetchpriority="high"></div>
@@ -44,8 +44,18 @@
         </div>
         <div class="composer-body">
           <div class="seed-field">
-            <label for="seed">Starting line <span class="muted">Optional</span></label>
-            <textarea id="seed" maxlength="240" rows="2" placeholder="A line, an image, or two truths in conflict…"></textarea>
+            <label for="seed">Prompt <span class="muted">Optional</span></label>
+            <textarea id="seed" maxlength="5000" rows="5" aria-describedby="prompt-count" placeholder="Give the agents a line, a scene, or a full songwriting brief…"></textarea>
+            <p class="prompt-count" id="prompt-count">0 / 5,000 characters</p>
+          </div>
+          <div class="length-field">
+            <div class="length-heading">
+              <label for="lyric-length">Lyrics length</label>
+              <output class="lever-value" id="lyric-length-value" for="lyric-length" aria-live="off">Target 3,300 characters</output>
+            </div>
+            <p class="lever-hint" id="lyric-length-hint">Suno cues count toward the 5,000-character maximum.</p>
+            <input class="lever-range" id="lyric-length" type="range" min="1700" max="5000" step="100" value="3300" aria-describedby="lyric-length-hint">
+            <div class="lever-endpoints" aria-hidden="true"><span>1,700</span><span>5,000</span></div>
           </div>
           <fieldset class="lever-fieldset" id="lever-fieldset">
             <legend>Shape the track</legend>

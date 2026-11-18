@@ -1,9 +1,10 @@
-import { LEVERS, STAGES, runTrack } from './engine.js';
+import { LEVERS, LYRIC_LENGTH, PROMPT_LIMIT, STAGES, runTrack } from './engine.js';
 import { mountConnection } from './connection.js';
 
 const $ = (selector) => document.querySelector(selector);
 const form = $('#composer');
 const seed = $('#seed');
+const lyricLength = $('#lyric-length');
 const steering = $('#steering');
 const status = $('#compose-status');
 const historyDialog = $('#history');
@@ -56,17 +57,39 @@ function message(text, kind = '') {
 }
 
 function saveDraft() {
-  write(storage.draft, { seed: seed.value, engine: steering.checked, controls: controls() });
+  write(storage.draft, {
+    seed: seed.value,
+    lyricLength: lyricLength.valueAsNumber,
+    engine: steering.checked,
+    controls: controls(),
+  });
 }
 
 function controls() {
   return Object.fromEntries([...leverElements].map(([id, { range, locked }]) => [id, locked ? Number(range.value) : null]));
 }
 
+function updateRangeLevel(range) {
+  const minimum = Number(range.min);
+  const level = (range.valueAsNumber - minimum) / (Number(range.max) - minimum) * 100;
+  range.style.setProperty('--level', `${level}%`);
+}
+
+function updatePromptCount() {
+  $('#prompt-count').textContent = `${seed.value.length.toLocaleString()} / ${PROMPT_LIMIT.toLocaleString()} characters`;
+}
+
+function updateLyricLength() {
+  const amount = `${lyricLength.valueAsNumber.toLocaleString()} characters`;
+  $('#lyric-length-value').textContent = `Target ${amount}`;
+  lyricLength.setAttribute('aria-valuetext', amount);
+  updateRangeLevel(lyricLength);
+}
+
 function toggleLevers() {
   for (const [id, row] of leverElements) {
     const lever = LEVERS.find((item) => item.id === id);
-    row.range.style.setProperty('--level', `${(Number(row.range.value) - Number(row.range.min)) / (Number(row.range.max) - Number(row.range.min)) * 100}%`);
+    updateRangeLevel(row.range);
     row.hold.classList.toggle('locked', row.locked);
     row.hold.setAttribute('aria-pressed', String(row.locked));
     row.hold.setAttribute('aria-label', `${row.locked ? 'Release' : 'Lock'} ${lever.label}`);
@@ -77,8 +100,17 @@ function toggleLevers() {
 }
 
 const draft = read(storage.draft, {});
-seed.value = typeof draft.seed === 'string' ? draft.seed.slice(0, seed.maxLength) : '';
+seed.maxLength = PROMPT_LIMIT;
+seed.value = typeof draft.seed === 'string' ? draft.seed.slice(0, PROMPT_LIMIT) : '';
+lyricLength.min = LYRIC_LENGTH.min;
+lyricLength.max = LYRIC_LENGTH.max;
+lyricLength.step = LYRIC_LENGTH.step;
+const savedLength = draft.lyricLength;
+lyricLength.value = Number.isInteger(savedLength) && savedLength >= LYRIC_LENGTH.min && savedLength <= LYRIC_LENGTH.max
+  ? savedLength : LYRIC_LENGTH.defaultValue;
 steering.checked = draft.engine === true;
+updatePromptCount();
+updateLyricLength();
 
 for (const lever of LEVERS) {
   const shell = make('div', 'lever');
@@ -121,9 +153,12 @@ for (const lever of LEVERS) {
 }
 
 toggleLevers();
-seed.addEventListener('input', saveDraft);
+seed.addEventListener('input', () => { updatePromptCount(); saveDraft(); });
+lyricLength.addEventListener('input', () => { updateLyricLength(); saveDraft(); });
 steering.addEventListener('change', () => { toggleLevers(); saveDraft(); });
 $('#reset').addEventListener('click', () => {
+  lyricLength.value = LYRIC_LENGTH.defaultValue;
+  updateLyricLength();
   for (const lever of LEVERS) {
     const row = leverElements.get(lever.id);
     row.locked = false;
@@ -179,6 +214,7 @@ function setBusy(busy) {
   $('#reset').disabled = busy;
   $('#lever-fieldset').disabled = busy;
   seed.readOnly = busy;
+  lyricLength.disabled = busy;
   form.setAttribute('aria-busy', String(busy));
 }
 
@@ -199,7 +235,8 @@ form.addEventListener('submit', async (event) => {
   $('#output-placeholder-body').textContent = 'Follow the agents above as they pass the draft through each stage.';
   try {
     const result = await runTrack({
-      seed: seed.value.trim(), steering: steering.checked ? 'engine' : 'manual', controls: controls(),
+      seed: seed.value.trim(), lyricLength: lyricLength.valueAsNumber,
+      steering: steering.checked ? 'engine' : 'manual', controls: controls(),
       models: connection.getModels(), key, previous: tracks.at(-1), signal, onStage: setStage,
     });
     if (signal.aborted) return;
@@ -264,7 +301,7 @@ function showTrack(track) {
   $('#track-output').hidden = false;
   $('#download').hidden = false;
   $('#track-title').textContent = track.title;
-  for (const [field, limit] of [['lyrics', 5000], ['style', 1000]]) {
+  for (const [field, limit] of [['lyrics', LYRIC_LENGTH.max], ['style', 1000]]) {
     const count = $(`#${field}-count`);
     count.textContent = `${track[field].length.toLocaleString()} / ${limit.toLocaleString()} characters`;
     $(`#${field}`).textContent = track[field];
