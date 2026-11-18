@@ -5,15 +5,39 @@ const STYLE_LIMIT = 1000;
 export const PROMPT_LIMIT = 5000;
 export const LYRIC_LENGTH = { min: 1700, max: 5000, step: 100, defaultValue: 3300 };
 const LYRIC_LIMIT = LYRIC_LENGTH.max;
+const LYRIC_LENGTH_LEVER = {
+  ...LYRIC_LENGTH, id: 'lyric_length', label: 'Lyrics length', low: '1,700', high: '5,000',
+  hint: 'Suno cues count toward the 5,000-character maximum.',
+};
 const STOCK_PHRASES = [
   'neon lights', 'digital night', 'concrete jungle', 'symphony of sound', 'chains of fate',
 ];
 
 export const STAGES = [
-  { id: 'paradoxic', name: 'Paradoxic', role: 'Philosophy & Paradox Director' },
-  { id: 'chrononaut', name: 'The Chrononaut Technician', role: 'Sonic & Frequency Architect' },
-  { id: 'brayne_snax', name: 'Brayne Snax', role: 'Lyrical Cipher Engine' },
-  { id: 'mr_e', name: 'MR. E', role: 'Vocal & Persona Weaver' },
+  {
+    id: 'paradoxic', name: 'Paradoxic', role: 'Philosophy & Paradox Director',
+    turn: 'Finds the premise and sets Auto sliders',
+    working: 'Paradoxic is finding the central tension and setting any sliders left on Auto.',
+    profile: 'Known as the Mad Toxic Metaphysician, Paradoxic is a volatile threshold guide and wounded healer. He brings two truths into conflict and looks for a choice that costs the speaker something.',
+  },
+  {
+    id: 'chrononaut', name: 'The Chrononaut Technician', role: 'Sonic & Frequency Architect',
+    turn: 'Plans the tempo, textures, and arrangement',
+    working: 'The Chrononaut Technician is building the beat, sound, and arrangement around the brief.',
+    profile: 'The Chrononaut helped build Quantum Cognizance and wants to teach it to dream. He can turn a contradiction into two rhythms that move together while each keeps its own pulse.',
+  },
+  {
+    id: 'brayne_snax', name: 'Brayne Snax', role: 'Lyrical Cipher Engine',
+    turn: 'Writes the verses, hook, and bridge',
+    working: 'Brayne Snax is writing the lyrics against the Chrononaut’s sound and rhythm.',
+    profile: 'Brayne Snax is Michael Mistree’s counterpart from the far future. He uses internal rhyme, split words, and shifting stresses to let a line carry more than one meaning.',
+  },
+  {
+    id: 'mr_e', name: 'MR. E', role: 'Vocal & Persona Weaver',
+    turn: 'Shapes the delivery and prepares the Suno fields',
+    working: 'MR. E is shaping the vocal delivery and preparing the lyrics and style fields for Suno.',
+    profile: 'MR. E is a fractured oracle who hears signals across timelines. He can bring back a breath, voice, or motif at a different moment, while keeping Brayne’s sung words intact.',
+  },
 ];
 
 export const LEVERS = [
@@ -23,6 +47,7 @@ export const LEVERS = [
   { id: 'intimacy', label: 'Voice distance', low: 'Farther away', high: 'Up close', min: 0, max: 100, defaultValue: 61, hint: 'How close the singer feels in the mix.' },
   { id: 'ambiguity', label: 'Meaning', low: 'Direct', high: 'Cryptic', min: 0, max: 100, defaultValue: 64, hint: 'How much the lyrics leave for you to figure out.' },
   { id: 'momentum', label: 'Energy', low: 'Steady', high: 'Big shifts', min: 0, max: 100, defaultValue: 55, hint: 'How sharply the beat and intensity change.' },
+  LYRIC_LENGTH_LEVER,
 ];
 
 function readText(value, limit = Infinity) {
@@ -80,8 +105,17 @@ function resolveControls(locks, proposed) {
     if (!valueInRange(value, lever)) {
       throw new Error('Paradoxic did not select a valid setting for ' + lever.label + '.');
     }
-    return [lever.id, value];
+    const step = lever.step ?? 1;
+    return [lever.id, lever.min + Math.round((value - lever.min) / step) * step];
   }));
+}
+
+function lyricBudgetFor(target) {
+  return {
+    finished_target: target,
+    draft_target: target === null ? null : target - Math.min(320, Math.round(target * 0.1)),
+    hard_limit: LYRIC_LIMIT,
+  };
 }
 
 function providerError(status) {
@@ -278,11 +312,12 @@ const WRITING_STYLE = [
 const PARADOXIC = [
   'As Paradoxic, you are a volatile threshold guide and wounded healer. Set two defensible truths against each other. Give care a cost and let your intervention risk changing the person who attempts it.',
   'If there is a seed, follow its subject and look for the contradiction inside it. If the seed is blank, build a new scene where the supplied Syndicate pressure gives someone a consequential choice. Let both the protective impulse and the cost of protection remain legible when they are at stake.',
-  'Use lyric_budget.finished_target to choose how much story fits. For a shorter track, give one central turn enough space. For a longer track, build further consequences into the arc.',
+  'Choose how much story fits in the lyrics length target. For a shorter track, give one central turn enough space. For a longer track, build further consequences into the arc.',
   'Write a brief original anchor glyph that the lyricist can stage as an object, sensory detail, or gesture. Give the arc a concrete break or change in a relationship. Let the contradiction stay open instead of using the arc to explain a doctrine.',
   'Use avoid_repeating only to steer away from the last track’s subject and images.',
-  'In engine mode, set every unlocked lever to a purposefully chosen whole number within its range.',
-  'Any number in control_locks is locked, including zero. Return those values unchanged. When the mode is manual, follow all supplied values.',
+  'You own the Auto levers. In engine mode, every null entry in control_locks is yours to set. Choose values that serve the brief and put each choice in resolved. The next three agents use those settings to produce this track.',
+  'Use lever_ranges to choose a whole number on each unlocked lever’s scale. If lyric_length is Auto, select a finished lyrics target from 1,700 to 5,000 characters in steps of 100. The arrangement cues share that character budget.',
+  'Copy every number in control_locks exactly, including zero. Those are the user’s locks or the manual defaults.',
   WRITING_STYLE,
   'Return fields title (short original song title), paradox_collision, anchor_glyph, arc_trajectory, experiment (one sentence naming the creative direction), resolved (object of lever IDs and integers), and scratchpad_note.',
 ].join(' ');
@@ -324,17 +359,12 @@ const MR_E = [
 
 export async function runTrack({
   seed = '', steering = 'engine', controls = {}, models = {}, key, previous,
-  lyricLength = LYRIC_LENGTH.defaultValue, signal, onStage = () => {}, request = complete,
+  lyricLength, signal, onStage = () => {}, request = complete,
 } = {}) {
   const userSeed = readText(seed, PROMPT_LIMIT);
-  if (!Number.isInteger(lyricLength) || lyricLength < LYRIC_LENGTH.min || lyricLength > LYRIC_LIMIT) {
+  if (lyricLength !== undefined && !valueInRange(lyricLength, LYRIC_LENGTH_LEVER)) {
     throw new Error('Choose a lyrics length from 1,700 to 5,000 characters.');
   }
-  const lyricBudget = {
-    finished_target: lyricLength,
-    draft_target: lyricLength - Math.min(320, Math.round(lyricLength * 0.1)),
-    hard_limit: LYRIC_LIMIT,
-  };
   const engineMode = steering === 'engine';
   const mode = engineMode ? 'engine' : 'manual';
   const credential = readText(key);
@@ -344,7 +374,7 @@ export async function runTrack({
     if (!model) throw new Error('Choose an OpenRouter model for ' + name + '.');
     return [id, model];
   }));
-  const locks = initialControls(controls, engineMode);
+  const locks = initialControls(lyricLength === undefined ? controls : { ...controls, lyric_length: lyricLength }, engineMode);
   const memory = {};
   const syndicateTension = userSeed ? null : chooseSyndicateTension(previous);
 
@@ -355,7 +385,6 @@ export async function runTrack({
       { role: 'system', content: [SHARED_DIRECTION, SYNDICATE_WORLD, prompt].join('\n\n') },
       { role: 'user', content: JSON.stringify({
         ...context,
-        lyric_budget: lyricBudget,
         last_wake_note: readText(previous?.memory?.[id], 360),
       }) },
     ];
@@ -381,7 +410,8 @@ export async function runTrack({
     user_seed: userSeed,
     mode,
     control_locks: locks,
-    lever_ranges: LEVERS.map(({id, label, min, max, low, high, hint}) => ({id, label, min, max, low, high, hint})),
+    lever_ranges: LEVERS.map(({id, label, min, max, step, low, high, hint}) => ({id, label, min, max, step: step ?? 1, low, high, hint})),
+    lyric_budget: lyricBudgetFor(locks.lyric_length),
     ...(syndicateTension ? { syndicate_tension: syndicateTension } : {}),
     avoid_repeating: previous ? {
       title: readText(previous.title, 100),
@@ -407,6 +437,7 @@ export async function runTrack({
     user_seed: userSeed,
     ...(syndicateTension ? { syndicate_tension: syndicateTension } : {}),
     creative_directive: directive,
+    lyric_budget: lyricBudgetFor(directive.resolved.lyric_length),
     influence_ratio: directive.resolved.style_blend / 100,
   };
   const sonic = await stage('chrononaut', CHRONONAUT, context, output => {
@@ -466,6 +497,6 @@ export async function runTrack({
     syndicateTension: syndicateTension && { id: syndicateTension.id, title: syndicateTension.title },
     steering: mode,
     seed: userSeed,
-    lyricLength,
+    lyricLength: directive.resolved.lyric_length,
   };
 }

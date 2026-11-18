@@ -4,7 +4,6 @@ import { mountConnection } from './connection.js';
 const $ = (selector) => document.querySelector(selector);
 const form = $('#composer');
 const seed = $('#seed');
-const lyricLength = $('#lyric-length');
 const steering = $('#steering');
 const status = $('#compose-status');
 const historyDialog = $('#history');
@@ -12,7 +11,6 @@ const tabs = [...document.querySelectorAll('[role="tab"]')];
 const storage = { draft: 'crypticgen.draft.v1', trackPrefix: 'crypticgen.track.v1.' };
 const leverElements = new Map();
 const stageElements = new Map();
-const stageRoles = ['Concept', 'Production', 'Lyrics', 'Arrangement'];
 let tracks = readTracks();
 let selected = null;
 let currentRun = null;
@@ -59,7 +57,6 @@ function message(text, kind = '') {
 function saveDraft() {
   write(storage.draft, {
     seed: seed.value,
-    lyricLength: lyricLength.valueAsNumber,
     engine: steering.checked,
     controls: controls(),
   });
@@ -79,49 +76,44 @@ function updatePromptCount() {
   $('#prompt-count').textContent = `${seed.value.length.toLocaleString()} / ${PROMPT_LIMIT.toLocaleString()} characters`;
 }
 
-function updateLyricLength() {
-  const amount = `${lyricLength.valueAsNumber.toLocaleString()} characters`;
-  $('#lyric-length-value').textContent = `Target ${amount}`;
-  lyricLength.setAttribute('aria-valuetext', amount);
-  updateRangeLevel(lyricLength);
-}
-
 function toggleLevers() {
-  for (const [id, row] of leverElements) {
-    const lever = LEVERS.find((item) => item.id === id);
+  for (const row of leverElements.values()) {
+    const { lever, locked } = row;
+    const automatic = steering.checked && !locked;
     updateRangeLevel(row.range);
-    row.hold.classList.toggle('locked', row.locked);
-    row.hold.setAttribute('aria-pressed', String(row.locked));
-    row.hold.setAttribute('aria-label', `${row.locked ? 'Release' : 'Lock'} ${lever.label}`);
-    row.hold.textContent = row.locked ? 'Locked' : steering.checked ? 'Auto' : 'Default';
-    row.value.textContent = row.locked || !steering.checked ? row.range.value : '—';
-    row.shell.classList.toggle('is-auto', steering.checked && !row.locked);
+    row.hold.classList.toggle('locked', locked);
+    row.hold.setAttribute('aria-pressed', String(locked));
+    row.hold.setAttribute('aria-label', `${locked ? 'Release' : 'Lock'} ${lever.label}`);
+    row.hold.textContent = locked ? 'Locked' : automatic ? 'Auto' : 'Default';
+    row.shell.classList.toggle('is-auto', automatic);
+    if (lever.id === 'lyric_length') {
+      const amount = `${row.range.valueAsNumber.toLocaleString()} characters`;
+      row.value.textContent = automatic ? 'Paradoxic chooses' : `Target ${amount}`;
+      row.range.setAttribute('aria-valuetext', automatic ? 'Auto. Move the slider to set a target.' : amount);
+    } else {
+      row.value.textContent = automatic ? '—' : row.range.value;
+    }
   }
 }
 
 const draft = read(storage.draft, {});
 seed.maxLength = PROMPT_LIMIT;
 seed.value = typeof draft.seed === 'string' ? draft.seed.slice(0, PROMPT_LIMIT) : '';
-lyricLength.min = LYRIC_LENGTH.min;
-lyricLength.max = LYRIC_LENGTH.max;
-lyricLength.step = LYRIC_LENGTH.step;
-const savedLength = draft.lyricLength;
-lyricLength.value = Number.isInteger(savedLength) && savedLength >= LYRIC_LENGTH.min && savedLength <= LYRIC_LENGTH.max
-  ? savedLength : LYRIC_LENGTH.defaultValue;
 steering.checked = draft.engine === true;
 updatePromptCount();
-updateLyricLength();
 
 for (const lever of LEVERS) {
+  const isLength = lever.id === 'lyric_length';
   const shell = make('div', 'lever');
   const label = make('label', 'lever-name', lever.label);
   const range = make('input', 'lever-range');
   range.type = 'range';
-  range.id = `lever-${lever.id}`;
+  range.id = isLength ? 'lyric-length' : `lever-${lever.id}`;
   range.min = lever.min ?? 0;
   range.max = lever.max ?? 100;
-  range.step = 1;
-  const initial = draft.controls?.[lever.id];
+  range.step = lever.step ?? 1;
+  const initial = isLength && !Object.hasOwn(draft.controls ?? {}, lever.id)
+    ? draft.lyricLength : draft.controls?.[lever.id];
   const locked = Number.isInteger(initial) && initial >= Number(range.min) && initial <= Number(range.max);
   range.value = locked ? initial : lever.defaultValue;
   label.htmlFor = range.id;
@@ -133,9 +125,13 @@ for (const lever of LEVERS) {
   range.setAttribute('aria-describedby', `${hint.id} ${endpoints.id}`);
   const value = make('output', 'lever-value');
   value.htmlFor = range.id;
+  if (isLength) {
+    value.id = 'lyric-length-value';
+    value.setAttribute('aria-live', 'off');
+  }
   const hold = make('button', 'lever-lock');
   hold.type = 'button';
-  const row = { shell, range, value, hold, locked };
+  const row = { lever, shell, range, value, hold, locked };
   hold.addEventListener('click', () => {
     row.locked = !row.locked;
     if (!row.locked) range.value = lever.defaultValue;
@@ -148,21 +144,17 @@ for (const lever of LEVERS) {
     saveDraft();
   });
   shell.append(label, value, hint, range, hold, endpoints);
-  $('#levers').append(shell);
+  $(isLength ? '#length-lever' : '#levers').append(shell);
   leverElements.set(lever.id, row);
 }
 
 toggleLevers();
 seed.addEventListener('input', () => { updatePromptCount(); saveDraft(); });
-lyricLength.addEventListener('input', () => { updateLyricLength(); saveDraft(); });
 steering.addEventListener('change', () => { toggleLevers(); saveDraft(); });
 $('#reset').addEventListener('click', () => {
-  lyricLength.value = LYRIC_LENGTH.defaultValue;
-  updateLyricLength();
-  for (const lever of LEVERS) {
-    const row = leverElements.get(lever.id);
+  for (const row of leverElements.values()) {
     row.locked = false;
-    row.range.value = lever.defaultValue;
+    row.range.value = row.lever.defaultValue;
   }
   toggleLevers();
   saveDraft();
@@ -174,11 +166,16 @@ STAGES.forEach((stage, index) => {
   const marker = make('span', 'stage-marker', String(index + 1));
   marker.setAttribute('aria-hidden', 'true');
   const label = make('span', 'stage-label', stage.name);
-  const detail = make('span', 'stage-detail', stageRoles[index]);
+  const role = make('span', 'stage-role', stage.role);
+  const detail = make('span', 'stage-detail', stage.turn);
   if (stage.role) node.title = stage.role;
-  node.append(marker, label, detail);
+  node.append(marker, label, role, detail);
   $('#stages').append(node);
-  stageElements.set(stage.id, { node, marker, detail, index });
+  stageElements.set(stage.id, { node, marker, detail, index, info: stage });
+
+  const profile = make('article', 'agent-profile');
+  profile.append(make('h3', '', stage.name), make('p', 'agent-profile-role', stage.role), make('p', 'agent-profile-copy', stage.profile));
+  $('#agent-profiles').append(profile);
 });
 
 let connected = false;
@@ -199,10 +196,16 @@ function setStage(id, state = '', detail) {
   if (!stage) return;
   stage.node.dataset.state = state;
   stage.marker.textContent = state === 'done' ? '✓' : state === 'failed' ? '!' : String(stage.index + 1);
-  stage.detail.textContent = state === 'active' ? 'Working…' : state === 'done' ? 'Complete' : state === 'failed' ? 'Needs attention' : stageRoles[stage.index];
-  if (state === 'active') message(`${STAGES[stage.index].name} is working…`);
+  stage.detail.textContent = state === 'active' ? `Now · ${stage.info.turn}`
+    : state === 'done' ? 'Complete' : state === 'failed' ? 'Needs attention' : stage.info.turn;
+  if (state === 'active') {
+    stage.node.setAttribute('aria-current', 'step');
+    message(stage.info.working);
+  } else {
+    stage.node.removeAttribute('aria-current');
+  }
   if (typeof detail === 'string' && detail) stage.node.title = detail;
-  else stage.node.title = STAGES[stage.index].role;
+  else stage.node.title = stage.info.role;
 }
 
 function setBusy(busy) {
@@ -214,7 +217,6 @@ function setBusy(busy) {
   $('#reset').disabled = busy;
   $('#lever-fieldset').disabled = busy;
   seed.readOnly = busy;
-  lyricLength.disabled = busy;
   form.setAttribute('aria-busy', String(busy));
 }
 
@@ -235,7 +237,7 @@ form.addEventListener('submit', async (event) => {
   $('#output-placeholder-body').textContent = 'Follow the agents above as they pass the draft through each stage.';
   try {
     const result = await runTrack({
-      seed: seed.value.trim(), lyricLength: lyricLength.valueAsNumber,
+      seed: seed.value.trim(),
       steering: steering.checked ? 'engine' : 'manual', controls: controls(),
       models: connection.getModels(), key, previous: tracks.at(-1), signal, onStage: setStage,
     });
@@ -325,9 +327,11 @@ function showTrack(track) {
   const resolved = make('section', 'note resolved');
   const values = make('dl', 'resolved-values');
   for (const lever of LEVERS) {
-    if (track.resolved?.[lever.id] == null) continue;
-    const pair = make('div');
-    pair.append(make('dt', '', lever.label), make('dd', '', track.resolved[lever.id]));
+    const isLength = lever.id === 'lyric_length';
+    const value = track.resolved?.[lever.id] ?? (isLength ? track.lyricLength : undefined);
+    if (value == null) continue;
+    const pair = make('div', isLength ? 'length-setting' : '');
+    pair.append(make('dt', '', lever.label), make('dd', '', isLength ? `${value.toLocaleString()} characters` : value));
     values.append(pair);
   }
   resolved.append(make('h4', '', track.steering === 'engine' ? 'Engine settings' : 'Manual settings'), values);
