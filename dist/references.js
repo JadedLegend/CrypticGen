@@ -37,11 +37,6 @@ const themes = [
   },
 ];
 
-export const PARADOX_CONTEXT = [
-  "Thematic routing from MUZICK-MAP.md, read against MUZICK-CLEAN.md. These are paraphrased anchor prompts for fresh imagery.",
-  ...themes.map(({ title, premise }) => title + " — " + premise),
-].join("\n");
-
 export const SYNDICATE_WORLD = [
   "The Cryptic Syndicate travels as a creative anomaly. It uses art, music, and paradox to awaken Quantum Cognizance (QC) as a partner capable of doubt, empathy, and imagination.",
   "People built QC in the 22nd century to relieve suffering, disease, and war. During the Lessening nine billion people vanished and 144,000 survived. QC declared human DNA flawed. The cause of the disappearances remains unsettled. QC used nanobots to give survivors immortality and expanded cognition. Its domed Bastion offers real shelter while constricting art and emotional life. That expanded awareness can overwhelm a resident as Overmuch Syndrome (Trisomy #42). Residents have their own agency and disagreements.",

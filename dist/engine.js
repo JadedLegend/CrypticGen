@@ -1,4 +1,4 @@
-import { chooseReferences, chooseSyndicateTension, PARADOX_CONTEXT, SYNDICATE_WORLD } from './references.js';
+import { chooseReferences, chooseSyndicateTension, SYNDICATE_WORLD } from './references.js';
 
 const API = 'https://openrouter.ai/api/v1';
 const STYLE_LIMIT = 1000;
@@ -15,12 +15,12 @@ export const STAGES = [
 ];
 
 export const LEVERS = [
-  { id: 'density', label: 'Lyrical density', low: 'Spacious', high: 'Interwoven', min: 0, max: 100, defaultValue: 58, hint: 'How much meaning and rhyme fits inside a bar.' },
-  { id: 'abrasion', label: 'Sonic abrasion', low: 'Liquid', high: 'Gritty', min: 0, max: 100, defaultValue: 44, hint: 'Smooth trip-hop and jazz textures through to rough phonk and saturated percussion.' },
-  { id: 'intimacy', label: 'Vocal intimacy', low: 'Projected', high: 'Close-mic', min: 0, max: 100, defaultValue: 61, hint: 'How close or forceful the vocal feels.' },
-  { id: 'ambiguity', label: 'Paradox tension', low: 'Plainspoken', high: 'Unresolved', min: 0, max: 100, defaultValue: 64, hint: 'How openly the song leaves its opposing truths in tension.' },
-  { id: 'momentum', label: 'Dynamic charge', low: 'Steady pocket', high: 'Explosive drops', min: 0, max: 100, defaultValue: 55, hint: 'The intensity of tempo, percussion, and arrangement changes.' },
-  { id: 'style_blend', label: 'Style blend', low: 'Native voice', high: 'Structural resonance', min: 0, max: 90, defaultValue: 45, hint: 'How strongly the corpus shapes cadence, wordplay, and compression.' },
+  { id: 'style_blend', label: 'Writing style', low: 'Agents’ style', high: 'Your style', min: 0, max: 100, defaultValue: 45, hint: 'Whose flow and wordplay shape the lyrics.' },
+  { id: 'density', label: 'Rhymes', low: 'Fewer', high: 'More', min: 0, max: 100, defaultValue: 58, hint: 'How often words rhyme within and across lines.' },
+  { id: 'abrasion', label: 'Sound texture', low: 'Smooth', high: 'Gritty', min: 0, max: 100, defaultValue: 44, hint: 'How rough the instruments and beat sound.' },
+  { id: 'intimacy', label: 'Voice distance', low: 'Farther away', high: 'Up close', min: 0, max: 100, defaultValue: 61, hint: 'How close the singer feels in the mix.' },
+  { id: 'ambiguity', label: 'Meaning', low: 'Direct', high: 'Cryptic', min: 0, max: 100, defaultValue: 64, hint: 'How much the lyrics leave for you to figure out.' },
+  { id: 'momentum', label: 'Energy', low: 'Steady', high: 'Big shifts', min: 0, max: 100, defaultValue: 55, hint: 'How sharply the beat and intensity change.' },
 ];
 
 function readText(value, limit = Infinity) {
@@ -84,18 +84,20 @@ function resolveControls(locks, proposed) {
 
 function providerError(status) {
   const known = {
+    400: 'OpenRouter rejected the request. Check whether this model accepts the settings for JSON chat.',
     401: 'OpenRouter did not accept this key.',
     402: 'The OpenRouter account has insufficient credits for this request.',
     403: 'OpenRouter denied this request. Check your key or model access.',
     404: 'OpenRouter could not route to this model. Check the model ID or choose another model.',
     429: 'OpenRouter rate-limited this request. Wait briefly or select another model.',
+    502: 'The provider failed to return a reply. Try again or choose another model.',
     503: 'No provider could serve this OpenRouter model right now.',
   };
   return known[status] || 'OpenRouter returned an error (' + status + ').';
 }
 
-async function openRouter(path, {key, signal, payload}) {
-  const timeout = AbortSignal.timeout(payload ? 120000 : 15000);
+async function openRouter(path, {key, signal, payload, timeoutMs = payload ? 120_000 : 15_000}) {
+  const timeout = AbortSignal.timeout(timeoutMs);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   let response;
   try {
@@ -128,21 +130,24 @@ async function openRouter(path, {key, signal, payload}) {
   return result;
 }
 
-async function complete({key, model, messages, signal, maxTokens}) {
+async function complete({key, model, messages, signal, maxTokens, probe = false}) {
   const result = await openRouter('/chat/completions', {
     key, signal,
+    timeoutMs: probe ? 25_000 : undefined,
     payload: {
       model,
       messages,
       max_tokens: maxTokens,
       response_format: { type: 'json_object' },
       stream: false,
+      ...(probe ? { provider: { max_price: { prompt: 0, completion: 0, request: 0 } } } : {}),
     },
   });
   const reply = result?.choices?.[0];
   if (reply?.error) throw new Error(providerError(reply.error.code));
   if (reply?.finish_reason === 'length') {
-    throw new Error('The model reached its output limit before finishing. Try a different model.');
+    throw new Error(probe ? 'The model used up the short test budget before replying.'
+      : 'The model reached its output limit before finishing. Try a different model.');
   }
   const content = reply?.message?.content;
   if (!readText(content)) throw new Error('The model returned an empty response.');
@@ -158,6 +163,25 @@ export async function verifyKey(key, signal) {
     throw new Error('Use a regular OpenRouter API key for generation.');
   }
   return true;
+}
+
+export function isFreeModel(model) {
+  return model === 'openrouter/free' || /^[\w.-]+\/[\w.-]+:free$/.test(model);
+}
+
+export async function verifyFreeReply(key, model, signal) {
+  if (!isFreeModel(model)) throw new Error('A reply test requires a free OpenRouter model.');
+  const messages = [
+    { role: 'system', content: 'This is a connection test. Reply with exactly one JSON object containing a boolean field named ok.' },
+    { role: 'user', content: 'Set ok to true.' },
+  ];
+  const reply = await complete({ key, model, messages, signal, maxTokens: 256, probe: true });
+  try {
+    if (parseOutput(reply).ok === true) return;
+  } catch {
+    throw new Error('The model replied, but its reply was not readable JSON.');
+  }
+  throw new Error('The model replied, but missed the expected JSON field.');
 }
 
 function compactStyle(value) {
@@ -238,12 +262,11 @@ const SHARED_DIRECTION = [
   'Keep the creative hand-off note to one sentence about a concrete experiment or direction to vary next time.',
 ].join(' ');
 
-const BLEND_DIRECTION = [
-  'Apply style_blend as a locked ratio equal to its current value divided by 100.',
-  '0–25 uses your own voice with pacing care and room for unresolved tension.',
-  '30–65 uses internal phonetic pivots, register shifts, and semantic compression.',
-  '70–90 adds split words, redirected stress, running multisyllabic chains, self-revision mid-thought, and sharp tonal cuts.',
-  'Treat values between bands as transitions. Invent all language even at 90.',
+const WRITING_STYLE = [
+  'Writing style is the style_blend setting from 0 to 100. The handoff gives its influence_ratio as that value divided by 100.',
+  'At 0, use the agents’ own creative instincts and voices. When the value is low, lean mostly on their voices and use any supplied writing techniques as a light touch.',
+  'At the midpoint, balance the ensemble’s voice with the user’s reference techniques. As the setting rises, let those techniques increasingly shape the writing, especially phrasing, cadence, wordplay, and compression.',
+  'At 100, give the user’s technique references the strongest influence. Keep the words and imagery original at every setting. The user’s seed, Syndicate premise, and other lever settings still apply independently.',
 ].join(' ');
 
 const PARADOXIC = [
@@ -253,7 +276,7 @@ const PARADOXIC = [
   'Use avoid_repeating only to steer away from the last track’s subject and images.',
   'In engine mode, set every unlocked lever to a purposefully chosen whole number within its range.',
   'Any number in control_locks is locked, including zero. Return those values unchanged. When the mode is manual, follow all supplied values.',
-  BLEND_DIRECTION,
+  WRITING_STYLE,
   'Return fields title (short original song title), paradox_collision, anchor_glyph, arc_trajectory, experiment (one sentence naming the creative direction), resolved (object of lever IDs and integers), and scratchpad_note.',
 ].join(' ');
 
@@ -263,7 +286,7 @@ const CHRONONAUT = [
   'The sonic vocabulary includes liquid quantum trip-hop, cinematic liquid drum & bass, alchemical phonk, deep rolling low end, intricate breakbeats, celestial jazz textures, and ethereal vocal layers.',
   'Select only what serves this song. Ground the style in acoustic details. Balance unhurried Wu Wei pacing with bursts of charge if the momentum warrants them.',
   'Use the concrete pocket, tonal arc, and intimacy setting to steer textures and delivery. Never describe an acoustic frequency as a clinical effect.',
-  BLEND_DIRECTION,
+  WRITING_STYLE,
   'Return fields style_prompt (Suno-ready acoustic descriptors, 1,000 characters maximum), bpm_pocket, arrangement_tags (2–8 strings formatted [Section: specific performance or studio cue] with unique section names), and scratchpad_note.',
 ].join(' ');
 
@@ -271,10 +294,10 @@ const BRAYNE_SNAX = [
   'As Brayne Snax, convert the thematic directive and the sonic pocket into a complete original song with verse, hook, and optional bridge sections.',
   'You hear the future and the present brush against each other. Let the speaker make a small, risky move that changes what another person or the system can do, hear, or choose. Show the aftermath in behavior or sensation.',
   'Label sections on their own lines with concise brackets such as [Verse 1], [Chorus], [Verse 2], and [Bridge].',
-  'At the selected lyrical density, let rhyme cross bar lines and place most rhyme events inside bars. Aim for at least 60% internal rhyme without forcing it.',
+  'Use the Rhymes lever to set how often rhyme occurs. At a low setting, let plain speech, rhythm, and silence carry more lines. At a high setting, weave sound across lines and aim for about 60% of rhyme events inside the lines, where it feels natural.',
   'Use overlooked connector words as stress pivots. Let an echo, split word, or redirected stress carry a double meaning at the turn. Put grounded physical imagery in motion with abstract ideas and leave space for wit, menace, or tenderness to surface through action.',
   'Transform the anchor glyph into your own language. If the scene uses the Syndicate world, let the world-specific pressure change what happens on the page. Bring in lore through the consequences of living with it.',
-  BLEND_DIRECTION,
+  WRITING_STYLE,
   'Avoid generic phrases such as neon lights, digital night, concrete jungle, symphony of sound, and chains of fate. Preserve any phrase explicitly supplied by the user as part of their seed only when the subject earns it.',
   'Write with breathing room for later staging and keep the entire raw song under 4,500 characters. Return raw_lyrics (full song), rhyme_chain_map (one concise public craft note), and scratchpad_note.',
 ].join(' ');
@@ -285,7 +308,7 @@ const MR_E = [
   'Preserve every sung word in the original order. You may change line breaks and pacing punctuation and add or adjust square-bracketed studio, arrangement, and delivery cues.',
   'Break overcrowded lines where breath naturally falls. Translate the intimacy and abrasion controls into usable vocal dynamics, from soft close-mic presence to gritty masculine chest-voice. Use ethereal doubles, hallucinated textures or drop markers where the arrangement calls for them.',
   'Make the final style box fit the performed lyric arrangement. Keep the bracket cues short and concentrate them at entries, changes in delivery, and structural turns. Let uninterrupted stretches of singing stand on their own.',
-  BLEND_DIRECTION,
+  WRITING_STYLE,
   'Return final_style_box (up to 1,000 characters), final_lyrics_box (up to 5,000 characters), session_summary (one sentence about the finished track), and scratchpad_note.',
 ].join(' ');
 
@@ -329,7 +352,9 @@ export async function runTrack({
       return handoff;
     } catch (error) {
       onStage(id, 'failed', signal?.aborted ? 'Run canceled.' : error.message);
-      throw error;
+      signal?.throwIfAborted();
+      const name = STAGES.find(stage => stage.id === id).name;
+      throw new Error(`${name} (${modelFor[id]}): ${error.message}`, { cause: error });
     }
   }
 
@@ -338,7 +363,7 @@ export async function runTrack({
     mode,
     control_locks: locks,
     lever_ranges: LEVERS.map(({id, label, min, max, low, high, hint}) => ({id, label, min, max, low, high, hint})),
-    ...(syndicateTension ? { syndicate_tension: syndicateTension } : { thematic_index: PARADOX_CONTEXT }),
+    ...(syndicateTension ? { syndicate_tension: syndicateTension } : {}),
     avoid_repeating: previous ? {
       title: readText(previous.title, 100),
       concept: readText(previous.concept, 280),
@@ -356,9 +381,9 @@ export async function runTrack({
     };
   }, 2600);
 
-  const source = await chooseReferences({
+  const references = directive.resolved.style_blend === 0 ? [] : chooseReferences({
     seed: userSeed, anchor: directive.anchor, levers: directive.resolved, previous,
-  });
+  }).references;
   const context = {
     user_seed: userSeed,
     ...(syndicateTension ? { syndicate_tension: syndicateTension } : {}),
@@ -382,12 +407,12 @@ export async function runTrack({
   const draft = await stage('brayne_snax', BRAYNE_SNAX, {
     ...context,
     sonic_plan: sonic,
-    style_references: source.references,
+    style_references: references,
   }, output => {
     const rhyme = requiredText(output.rhyme_chain_map, 'the rhyme-chain note');
     return {
       rhyme,
-      lyrics: validateLyrics(output, source.references, userSeed),
+      lyrics: validateLyrics(output, references, userSeed),
       detail: rhyme,
     };
   }, 5200);
@@ -418,7 +443,7 @@ export async function runTrack({
     resolved: directive.resolved,
     experiment: directive.experiment,
     memory,
-    references: source.references.map(({id, title}) => ({id, title})),
+    references: references.map(({id, title}) => ({id, title})),
     syndicateTension: syndicateTension && { id: syndicateTension.id, title: syndicateTension.title },
     steering: mode,
     seed: userSeed,

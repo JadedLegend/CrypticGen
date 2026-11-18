@@ -93,8 +93,12 @@ for (const lever of LEVERS) {
   const locked = Number.isInteger(initial) && initial >= Number(range.min) && initial <= Number(range.max);
   range.value = locked ? initial : lever.defaultValue;
   label.htmlFor = range.id;
-  if (lever.hint) label.title = lever.hint;
-  range.setAttribute('aria-description', `${lever.hint ?? lever.label} ${lever.low} to ${lever.high}.`);
+  const hint = make('p', 'lever-hint', lever.hint);
+  hint.id = `${range.id}-hint`;
+  const endpoints = make('div', 'lever-endpoints');
+  endpoints.id = `${range.id}-endpoints`;
+  endpoints.append(make('span', '', lever.low), make('span', '', lever.high));
+  range.setAttribute('aria-describedby', `${hint.id} ${endpoints.id}`);
   const value = make('output', 'lever-value');
   value.htmlFor = range.id;
   const hold = make('button', 'lever-lock');
@@ -111,7 +115,7 @@ for (const lever of LEVERS) {
     toggleLevers();
     saveDraft();
   });
-  shell.append(label, value, range, hold);
+  shell.append(label, value, hint, range, hold, endpoints);
   $('#levers').append(shell);
   leverElements.set(lever.id, row);
 }
@@ -127,7 +131,7 @@ $('#reset').addEventListener('click', () => {
   }
   toggleLevers();
   saveDraft();
-  message('Creative levers reset.');
+  message('Sliders reset.');
 });
 
 STAGES.forEach((stage, index) => {

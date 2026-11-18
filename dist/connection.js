@@ -1,3 +1,5 @@
+import { isFreeModel, verifyFreeReply, verifyKey } from './engine.js';
+
 const router = "https://openrouter.ai";
 const keyStorage = "crypticgen.encrypted-openrouter-key.v1";
 const modelStorage = "crypticgen.openrouter-models.v1";
@@ -21,11 +23,13 @@ function readStorage(storage, name) {
 }
 
 function request(path, options = {}) {
+  const timeout = AbortSignal.timeout(18_000);
   return fetch(`${router}/api/v1/${path}`, {
     ...options,
     credentials: "omit",
     redirect: "error",
-    signal: AbortSignal.timeout(18_000),
+    cache: "no-store",
+    signal: options.signal ? AbortSignal.any([options.signal, timeout]) : timeout,
   });
 }
 
@@ -50,6 +54,49 @@ function cleanModel(value) {
     ? value.trim() : "";
 }
 
+async function availableModels(key, signal) {
+  try {
+    const response = await request("models/user", { headers: { Authorization: `Bearer ${key}` }, signal });
+    if (!response.ok) return null;
+    const { data } = await response.json();
+    return Array.isArray(data) ? new Set(data.flatMap(model => [model.id, model.canonical_slug]).filter(Boolean)) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function checkModel(key, model, accountModels, signal) {
+  if (isFreeModel(model)) {
+    await verifyFreeReply(key, model, signal);
+    return { state: "ready", text: "Replied in a free chat test." };
+  }
+
+  if (model === "openrouter/auto") {
+    const catalog = await accountModels;
+    if (catalog && !catalog.has(model)) return { state: "warning", text: "This router is missing from your account’s model list." };
+    return { state: "info", text: "Chooses a route when you generate. Reply test skipped because the route can charge." };
+  }
+
+  const parts = model.match(/^([\w][\w.-]*)\/([\w][\w.:-]*)$/);
+  if (!parts) return { state: "warning", text: "Use a full model ID, such as openrouter/free." };
+  const path = `models/${encodeURIComponent(parts[1])}/${encodeURIComponent(parts[2])}/endpoints`;
+  const response = await request(path, { headers: { Authorization: `Bearer ${key}` }, signal });
+  const unavailable = { state: "warning", text: "No chat endpoint confirmed. Check the model ID or choose a different model." };
+  if (response.status === 404) return unavailable;
+  if (!response.ok) return { state: "warning", text: `Endpoint lookup failed (${response.status}). Try checking again.` };
+  const { data } = await response.json();
+  const { input_modalities: input, output_modalities: output } = data?.architecture ?? {};
+  if ((Array.isArray(input) && !input.includes("text")) || (Array.isArray(output) && !output.includes("text"))) {
+    return { state: "warning", text: "This model does not support text chat." };
+  }
+  if (!data?.endpoints?.length) return unavailable;
+  const catalog = await accountModels;
+  if (catalog && ![model, data.id, data.canonical_slug].some(id => catalog.has(id))) {
+    return { state: "warning", text: "OpenRouter lists an endpoint, but this model is missing from your account’s model list." };
+  }
+  return { state: "info", text: "Chat endpoint listed. Paid reply test skipped." };
+}
+
 export function mountConnection({ root, trigger, onChange, stages, defaultModel }) {
   root.classList.add("connection-dialog");
   root.setAttribute("aria-labelledby", "connection-heading");
@@ -67,11 +114,12 @@ export function mountConnection({ root, trigger, onChange, stages, defaultModel 
         <label for="connection-key">OpenRouter API key</label>
         <input id="connection-key" data-connection="key" type="password" maxlength="1024" autocomplete="off" spellcheck="false" placeholder="Paste your OpenRouter key" aria-describedby="connection-key-help">
         <div class="connection-actions">
-          <button type="button" data-connection="check">Check connection</button>
+          <button type="button" data-connection="check" aria-describedby="connection-check-help">Check connection</button>
           <button type="button" data-connection="save">Save on this device</button>
           <button type="button" data-connection="unlock" hidden>Unlock saved key</button>
           <button type="button" data-connection="forget" hidden>Forget key</button>
         </div>
+        <p class="connection-help" id="connection-check-help">Checks your key and assigned models. Free reply tests can use part of your free request limit. Paid models get an endpoint check only.</p>
         <div class="connection-passphrase" data-connection="passphrase-box" hidden>
           <label for="connection-passphrase" data-connection="passphrase-label">Passphrase</label>
           <input id="connection-passphrase" data-connection="passphrase" type="password" autocomplete="off" maxlength="256">
@@ -82,6 +130,7 @@ export function mountConnection({ root, trigger, onChange, stages, defaultModel 
         </div>
         <p class="connection-help" id="connection-key-help">Your key goes directly to OpenRouter. It stays in this tab unless you save it with a passphrase.</p>
         <p class="connection-status" data-connection="status" role="status"></p>
+        <ul class="connection-model-results" data-connection="model-results" aria-label="Model check results" hidden></ul>
       </div>
       <div class="connection-section">
         <label for="connection-default-model">Default model</label>
@@ -104,6 +153,7 @@ export function mountConnection({ root, trigger, onChange, stages, defaultModel 
   const keyInput = field("key");
   const status = field("status");
   const catalogStatus = field("catalog-status");
+  const modelResults = field("model-results");
   const defaultInput = field("default-model");
   const passphraseBox = field("passphrase-box");
   const passphraseInput = field("passphrase");
@@ -115,7 +165,7 @@ export function mountConnection({ root, trigger, onChange, stages, defaultModel 
   let verified = false;
   let loadedCatalog = false;
   let passphraseAction = "";
-  let keyRevision = 0;
+  let modelCheck;
   let keyBusy = false;
   let authorizationBusy = false;
 
@@ -154,6 +204,13 @@ export function mountConnection({ root, trigger, onChange, stages, defaultModel 
   }
 
   for (const input of [defaultInput, ...agentModels.values()]) {
+    input.addEventListener("input", () => {
+      if (!modelResults.hidden || modelCheck) {
+        clearModelCheck();
+        status.textContent = "Model settings changed. Check the connection again to see results.";
+        updateKeyControls();
+      }
+    });
     input.addEventListener("change", () => {
       input.value = cleanModel(input.value) || (input === defaultInput ? defaultModel : "");
       try {
@@ -175,15 +232,22 @@ export function mountConnection({ root, trigger, onChange, stages, defaultModel 
     field("forget").disabled = busy;
     field("forget").hidden = !hasKey && !hasSavedKey;
     field("authorize").disabled = busy;
-    field("check").disabled = busy || !hasKey || field("check").dataset.pending === "true";
+    field("check").disabled = busy || !hasKey || Boolean(modelCheck);
     onChange({ connected: hasKey, verified });
   }
 
   function keyChanged({ accepted = false, fromSaved = false } = {}) {
-    keyRevision += 1;
+    clearModelCheck();
     verified = accepted;
     savedKeyIsOpen = fromSaved;
     updateKeyControls();
+  }
+
+  function clearModelCheck() {
+    modelCheck?.abort();
+    modelCheck = undefined;
+    modelResults.hidden = true;
+    modelResults.replaceChildren();
   }
 
   function clearPassphrase() {
@@ -283,27 +347,69 @@ export function mountConnection({ root, trigger, onChange, stages, defaultModel 
 
   async function checkConnection() {
     const key = getKey();
-    if (!key) return;
-    const revision = keyRevision;
-    const check = field("check");
-    check.dataset.pending = "true";
-    updateKeyControls();
-    status.textContent = "Checking with OpenRouter…";
-    try {
-      const response = await request("key", { headers: { Authorization: `Bearer ${key}` } });
-      if (revision !== keyRevision) return;
-      verified = response.ok;
-      if (response.ok) status.textContent = "OpenRouter accepted your key.";
-      else if (response.status === 401 || response.status === 403) status.textContent = "OpenRouter didn’t accept that key. Check it or connect again.";
-      else status.textContent = "OpenRouter couldn’t check the key. Try again in a moment.";
-    } catch {
-      if (revision !== keyRevision) return;
-      verified = false;
-      status.textContent = "Couldn’t reach OpenRouter from this browser.";
-    } finally {
-      delete check.dataset.pending;
-      updateKeyControls();
+    if (!key || modelCheck) return;
+    clearModelCheck();
+    const check = new AbortController();
+    modelCheck = check;
+    const { signal } = check;
+    const assignments = new Map();
+    const selections = getModels();
+    for (const stage of stages) {
+      const model = selections[stage.id];
+      if (!assignments.has(model)) assignments.set(model, []);
+      assignments.get(model).push(stage.name);
     }
+    updateKeyControls();
+    status.textContent = "Checking your OpenRouter key…";
+    try {
+      await verifyKey(key, signal);
+      signal.throwIfAborted();
+    } catch (error) {
+      if (signal.aborted) return;
+      verified = false;
+      status.textContent = error.message;
+      modelCheck = undefined;
+      updateKeyControls();
+      return;
+    }
+
+    verified = true;
+    status.textContent = "Key accepted. Checking assigned models…";
+    modelResults.hidden = false;
+    const accountModels = [...assignments.keys()].some(model => !isFreeModel(model))
+      ? availableModels(key, signal) : Promise.resolve(null);
+
+    const states = await Promise.all([...assignments].map(async ([model, agents]) => {
+      const row = document.createElement("li");
+      const title = document.createElement("strong");
+      const names = document.createElement("span");
+      const outcome = document.createElement("span");
+      title.textContent = model;
+      names.textContent = agents.join(", ");
+      outcome.textContent = "Checking…";
+      row.append(title, names, outcome);
+      modelResults.append(row);
+      let result;
+      try {
+        result = await checkModel(key, model, accountModels, signal);
+      } catch (error) {
+        const text = error.name === "TimeoutError" ? "OpenRouter did not reply in time. Try checking again."
+          : error.name === "TypeError" ? "Couldn’t reach OpenRouter from this browser." : error.message;
+        result = { state: "warning", text };
+      }
+      if (!signal.aborted) {
+        outcome.dataset.state = result.state;
+        outcome.textContent = result.text;
+      }
+      return result.state;
+    }));
+    if (signal.aborted) return;
+    const warnings = states.filter(state => state === "warning").length;
+    status.textContent = warnings
+      ? `Key accepted. ${warnings} ${warnings === 1 ? "model needs" : "models need"} attention.`
+      : "Key accepted. Model checks complete.";
+    modelCheck = undefined;
+    updateKeyControls();
   }
 
   async function authorize() {
